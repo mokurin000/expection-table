@@ -1,15 +1,12 @@
 import json
 import xlsxwriter
 
-# 加载 JSON 数据
 with open('plants.json', 'r', encoding='utf-8') as f:
     plants_data = json.load(f)
 
-# 分离地球和月球作物
 earth_plants = [p for p in plants_data if p['type'] == '普通']
 moon_plants = [p for p in plants_data if p['type'] == '月球']
 
-# 基础突变类型及倍数
 mutations_earth = [
     {'name': '无', 'mult': 1.0},
     {'name': '银', 'mult': 3.0},
@@ -22,7 +19,6 @@ mutations_moon = mutations_earth + [
     {'name': '星空', 'mult': 40.0}
 ]
 
-# 洒水器配置（百分比已 ×100）
 sprinklers = [
     {'name': '空刷',   'min': 2.94,  'max': 5.88,   'minG': 14.71, 'maxG': 29.41},
     {'name': '简易',   'min': 3.53,  'max': 7.06,   'minG': 17.65, 'maxG': 35.29},
@@ -32,41 +28,38 @@ sprinklers = [
 ]
 
 def format_price(value):
-    """格式化价格：≥10000 显示为 X.X万（保留1位小数），否则完整数字"""
     if value >= 10000:
-        v = round(value / 10000, 1)          # 四舍五入到1位小数
-        return f"{v:.1f}万"                  # 强制显示1位小数（如 1.0万）
+        v = round(value / 10000, 1)
+        return f"{v:.1f}万"
     else:
         return f"{int(round(value)):,}"
 
 def create_sheet(workbook, sheet_name, plants, mutations):
     worksheet = workbook.add_worksheet(sheet_name)
     
-    # 表头
-    headers = ['作物名称', '空刷', '简易', '标准', '白银', '黄金']
+    headers = ['作物名称', '突变', '规模', '空刷', '简易', '标准', '白银', '黄金']
     
-    # 列背景色：白 灰 绿 蓝 橙
     colors = ['#FFFFFF', '#D3D3D3', '#90EE90', '#87CEFA', '#FFCC66']
     col_formats = [workbook.add_format({'bg_color': c, 'align': 'center', 'valign': 'vcenter'}) for c in colors]
     
     header_fmt = workbook.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter'})
     
-    # 写入表头
     for col, header in enumerate(headers):
-        if col == 0:
+        if col < 3:
             worksheet.write(0, col, header, header_fmt)
         else:
             h_fmt = workbook.add_format({
-                'bg_color': colors[col-1],
+                'bg_color': colors[col-3],
                 'bold': True,
                 'align': 'center',
                 'valign': 'vcenter'
             })
             worksheet.write(0, col, header, h_fmt)
     
-    # 列宽（加大一点容纳“X.X万 ~ Y.Y万”）
-    worksheet.set_column(0, 0, 28)
-    worksheet.set_column(1, 5, 38)
+    worksheet.set_column(0, 0, 20)     # 作物名称
+    worksheet.set_column(1, 1, 10)     # 突变
+    worksheet.set_column(2, 2, 10)     # 规模（普通/巨大）
+    worksheet.set_column(3, 7, 32)     # 洒水器列
     
     row = 1
     for plant in plants:
@@ -75,46 +68,38 @@ def create_sheet(workbook, sheet_name, plants, mutations):
         price_coeff = plant['priceCoefficient']
         
         for mut in mutations:
-            display_name = f"{name} ({mut['name']})"
-            worksheet.write(row, 0, display_name)
+            mult = mut['mult']
+            mut_name = mut['name']
             
-            for s_idx, sp in enumerate(sprinklers):
-                mult = mut['mult']
+            for scale, is_giant in [('普通', False), ('巨大', True)]:
+                worksheet.write(row, 0, name)
+                worksheet.write(row, 1, mut_name)
+                worksheet.write(row, 2, scale)
                 
-                # 非巨大化范围
-                w_min = max_weight * (sp['min'] / 100)
-                w_max = max_weight * (sp['max'] / 100)
-                p_min_norm = (w_min ** 1.5) * price_coeff * mult
-                p_max_norm = (w_max ** 1.5) * price_coeff * mult
+                for s_idx, sp in enumerate(sprinklers):
+                    if is_giant:
+                        pct_min = sp['minG']
+                        pct_max = sp['maxG']
+                    else:
+                        pct_min = sp['min']
+                        pct_max = sp['max']
+                    
+                    w_min = max_weight * (pct_min / 100)
+                    w_max = max_weight * (pct_max / 100)
+                    p_min = (w_min ** 1.5) * price_coeff * mult
+                    p_max = (w_max ** 1.5) * price_coeff * mult
+                    
+                    range_text = f"{format_price(p_min)} ~ {format_price(p_max)}"
+                    worksheet.write(row, s_idx + 3, range_text, col_formats[s_idx])
                 
-                # 巨大化范围
-                w_min_g = max_weight * (sp['minG'] / 100)
-                w_max_g = max_weight * (sp['maxG'] / 100)
-                p_min_g = (w_min_g ** 1.5) * price_coeff * mult
-                p_max_g = (w_max_g ** 1.5) * price_coeff * mult
-                
-                # 格式化
-                norm_range = f"{format_price(p_min_norm)} ~ {format_price(p_max_norm)}"
-                g_range   = f"{format_price(p_min_g)} ~ {format_price(p_max_g)}"
-                
-                cell_text = f"普通: {norm_range}\r\n巨大: {g_range}"
-                
-                worksheet.write(row, s_idx + 1, cell_text, col_formats[s_idx])
-            
-            row += 1
+                row += 1
     
-    # 冻结首行 + 首列（作物名）
-    worksheet.freeze_panes(1, 1)
+    worksheet.freeze_panes(1, 3)  # 冻结前三列（作物、突变、规模）
 
-# 生成 Excel
-workbook = xlsxwriter.Workbook('作物底价范围表_小数万.xlsx')
+workbook = xlsxwriter.Workbook('作物底价范围表_分行版.xlsx')
 create_sheet(workbook, '地球', earth_plants, mutations_earth)
 create_sheet(workbook, '月球', moon_plants, mutations_moon)
 workbook.close()
 
-print("已生成：作物底价范围表_小数万.xlsx")
-print("大额价值示例：")
-print("  12345 → 1.2万")
-print("  10000 → 1.0万")
-print("  56789 → 5.7万")
-print("  9999  → 9,999（不变）")
+print("已生成：作物底价范围表_分行版.xlsx")
+print("现在每种作物+突变+规模（普通/巨大）独立一行，便于筛选、排序、过滤。")
