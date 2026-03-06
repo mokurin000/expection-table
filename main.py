@@ -1,6 +1,6 @@
 import json
 import math
-from typing import Iterable
+from typing import Iterable, Literal
 import xlsxwriter
 
 # 加载 JSON 数据
@@ -149,7 +149,7 @@ def create_sheet(
     sheet_name: str,
     plants: list[dict],
     mutations: list[dict],
-    expection: bool = True,
+    sheet_type: Literal["expection", "range"] = "expection",
 ):
 
     worksheet = workbook.add_worksheet(sheet_name)
@@ -237,13 +237,13 @@ def create_sheet(
 
                 for i, sp in enumerate(sprinklers):
                     k = sp["k"]
-                    if expection:
+                    if sheet_type == "expection":
                         effective_w = plant_max_weight * k * G / 34
                         expected = const * price_coeff * (effective_w**1.5) * mult
                         worksheet.write(
                             row, i + 3, format_price(expected), sprinkler_fmt[i]
                         )
-                    else:
+                    elif sheet_type == "range":
                         min_weight = plant_max_weight * k * G / 34
                         max_weight = min_weight * 2
                         price_min = price_coeff * (min_weight**1.5) * mult
@@ -265,9 +265,9 @@ OUT_FILE = "作物洒水价值表.xlsx"
 workbook = xlsxwriter.Workbook(OUT_FILE)
 
 create_sheet(workbook, "地球期望", earth_plants, mutations_earth)
-create_sheet(workbook, "地球范围", earth_plants, mutations_earth, expection=False)
+create_sheet(workbook, "地球范围", earth_plants, mutations_earth, sheet_type="range")
 create_sheet(workbook, "月球期望", moon_plants, mutations_moon)
-create_sheet(workbook, "月球范围", moon_plants, mutations_moon, expection=False)
+create_sheet(workbook, "月球范围", moon_plants, mutations_moon, sheet_type="range")
 
 workbook.close()
 
