@@ -8,6 +8,20 @@ import xlsxwriter
 with open("plants.json", "r", encoding="utf-8") as f:
     plants_data = json.load(f)
 
+common = ["月光草", "灰壤豆", "土豆", "香菇", "番茄", "波斯菊"]
+uncommon = ["月灯草", "月番茄", "大豆", "竹子", "黄瓜"]
+rare = ["西瓜", "梨", "橘子", "玉米", "白菜", "牵牛花", "棉花", "月环树", "银灰苔"]
+legendary = ["月莓", "星叶菜", "苹果", "石榴", "香蕉", "车厘子", "椰子", "南瓜"]
+devine = ["草莓", "猕猴桃", "荔枝", "榴莲", "月核树", "液光藤"]
+
+# fmt: off
+prismatic = [
+    "月影梅", "幻月花", "星空玫瑰", "红包树", "月兔", \
+    "向日葵", "松果", "大王菊", "葡萄", "蟠桃", \
+    "惊奇菇", "仙人掌象", "魔鬼朝天椒"
+]
+# fmt: on
+
 
 # 分离地球和月球作物
 def sort_plants(plants: Iterable[dict]) -> list:
