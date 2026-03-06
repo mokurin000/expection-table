@@ -57,10 +57,20 @@ sprinklers = [
 ]
 
 
-def format_price(v: float):
+def format_price(v: float) -> str:
     if v >= 10000:
         return f"{v / 10000:.2f}万"
     return f"{int(round(v)):,}"
+
+
+def format_time(secs: int) -> str:
+    result = ""
+    for threshold, label in [(3600, "小时"), (60, "分钟")]:
+        if secs > threshold:
+            value = secs // threshold
+            result += f"{value}{label}"
+            secs %= threshold
+    return result or f"{secs}秒"
 
 
 rarity_colors = {
@@ -208,17 +218,58 @@ def sheet_price_line(
             )
 
 
+def sheet_time_line(
+    worksheet: Worksheet,
+    row: int,
+    crop_name: str,
+    crop_name_fmt: Format,
+    crop_name_fmt_top: Format,
+    crop_max_weight: float,
+    crop_growth_speed: float,
+    is_giant: bool,
+    first_row: bool,
+    formats: dict[str, Format],
+):
+    scale = "普通" if not is_giant else "巨大"
+
+    if first_row:
+        fmt = formats["cell_top"]
+        name_format = crop_name_fmt_top
+        sprinkler_fmt = formats["sprinkler_top"]
+    else:
+        fmt = formats["cell"]
+        name_format = crop_name_fmt
+        sprinkler_fmt = formats["sprinkler"]
+
+    worksheet.write(row, 0, crop_name, name_format)
+    worksheet.write(row, 1, scale, fmt)
+
+    G = 5.0 if is_giant else 1.0
+
+    for i, sp in enumerate(sprinklers):
+        k = sp["k"]
+        effective_w = crop_max_weight * k * G / 34
+        min_grow_secs = effective_w * crop_growth_speed
+        max_grow_secs = min_grow_secs * 2
+        worksheet.write(
+            row,
+            i + 2,
+            f"{format_time(int(min_grow_secs))}~{format_time(int(max_grow_secs))}",
+            sprinkler_fmt[i],
+        )
+
+
 def create_sheet(
     workbook: xlsxwriter.Workbook,
     sheet_name: str,
     plants: list[dict],
     mutations: list[dict],
-    sheet_type: Literal["expection", "range", "expection_time"] = "expection",
+    sheet_type: Literal["expection", "range", "growth_time"] = "expection",
 ):
 
     worksheet = workbook.add_worksheet(sheet_name)
 
-    if sheet_type != "expection_time":
+    if sheet_type != "growth_time":
         headers = ["作物名称", "突变", "规模", "空刷", "简易", "标准", "白银", "黄金"]
     else:
         headers = ["作物名称", "规模", "空刷", "简易", "标准", "白银", "黄金"]
@@ -231,12 +282,12 @@ def create_sheet(
         worksheet.write(0, col, h, formats["header"])
 
     worksheet.set_column(0, 0, 20)
-    if sheet_type != "expection_time":
+    if sheet_type != "growth_time":
         worksheet.set_column(1, 2, 10)
         worksheet.set_column(3, 7, 18)
     else:
         worksheet.set_column(1, 1, 10)
-        worksheet.set_column(2, 6, 18)
+        worksheet.set_column(2, 6, 26)
 
     row = 1
 
@@ -272,25 +323,43 @@ def create_sheet(
         first_row = True
 
         for is_giant in [True, False]:
-            for i, mut in enumerate(mutations):
-                sheet_price_line(
-                    worksheet=worksheet,
-                    i=i,
-                    row=row,
-                    crop_name=name,
-                    crop_name_fmt=name_fmt,
-                    crop_name_fmt_top=name_fmt_top,
-                    crop_name_fmt_dash=name_fmt_dash,
-                    crop_max_weight=plant_max_weight,
-                    crop_price_coeff=price_coeff,
-                    is_giant=is_giant,
-                    mutation=mut,
-                    first_row=first_row,
-                    formats=formats,
-                    sheet_type=sheet_type,
-                )
-                first_row = False
-                row += 1
+            if sheet_type != "growth_time":
+                for i, mut in enumerate(mutations):
+                    sheet_price_line(
+                        worksheet=worksheet,
+                        i=i,
+                        row=row,
+                        crop_name=name,
+                        crop_name_fmt=name_fmt,
+                        crop_name_fmt_top=name_fmt_top,
+                        crop_name_fmt_dash=name_fmt_dash,
+                        crop_max_weight=plant_max_weight,
+                        crop_price_coeff=price_coeff,
+                        is_giant=is_giant,
+                        mutation=mut,
+                        first_row=first_row,
+                        formats=formats,
+                        sheet_type=sheet_type,
+                    )
+                    first_row = False
+                    row += 1
+            else:
+                crop_growth_speed = plant["growthSpeed"]
+                if crop_growth_speed:
+                    sheet_time_line(
+                        worksheet=worksheet,
+                        row=row,
+                        crop_name=name,
+                        crop_name_fmt=name_fmt,
+                        crop_name_fmt_top=name_fmt_top,
+                        crop_max_weight=plant_max_weight,
+                        crop_growth_speed=crop_growth_speed,
+                        is_giant=is_giant,
+                        first_row=first_row,
+                        formats=formats,
+                    )
+                    first_row = False
+                    row += 1
 
     worksheet.freeze_panes(1, 3)
 
@@ -302,6 +371,21 @@ create_sheet(workbook, "地球期望", earth_plants, mutations_earth)
 create_sheet(workbook, "地球范围", earth_plants, mutations_earth, sheet_type="range")
 create_sheet(workbook, "月球期望", moon_plants, mutations_moon)
 create_sheet(workbook, "月球范围", moon_plants, mutations_moon, sheet_type="range")
+
+create_sheet(
+    workbook,
+    "地球时间",
+    earth_plants,
+    mutations_earth,
+    sheet_type="growth_time",
+)
+create_sheet(
+    workbook,
+    "月球时间",
+    moon_plants,
+    mutations_moon,
+    sheet_type="growth_time",
+)
 
 workbook.close()
 
