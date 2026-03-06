@@ -1,14 +1,26 @@
 import json
-import xlsxwriter
 import math
+from typing import Iterable
+
+import xlsxwriter
 
 # 加载 JSON 数据
 with open("plants.json", "r", encoding="utf-8") as f:
     plants_data = json.load(f)
 
+
 # 分离地球和月球作物
-earth_plants = [p for p in plants_data if p["type"] == "普通"]
-moon_plants = [p for p in plants_data if p["type"] == "月球"]
+def sort_plants(plants: Iterable[dict]) -> list:
+    return sorted(
+        plants,
+        key=lambda p: p["maxWeight"] ** 1.5 * p["priceCoefficient"],
+        reverse=True,
+    )
+
+
+earth_plants = sort_plants(p for p in plants_data if p["type"] == "普通")
+moon_plants = sort_plants(p for p in plants_data if p["type"] == "月球")
+
 
 # 基础突变类型及倍数
 mutations_earth = [
