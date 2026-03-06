@@ -149,6 +149,7 @@ def create_sheet(
     sheet_name: str,
     plants: list[dict],
     mutations: list[dict],
+    expection: bool = True,
 ):
 
     worksheet = workbook.add_worksheet(sheet_name)
@@ -236,14 +237,23 @@ def create_sheet(
 
                 for i, sp in enumerate(sprinklers):
                     k = sp["k"]
-
-                    effective_w = max_weight * k * G / 34
-
-                    expected = const * price_coeff * (effective_w**1.5) * mult
-
-                    worksheet.write(
-                        row, i + 3, format_price(expected), sprinkler_fmt[i]
-                    )
+                    if expection:
+                        effective_w = max_weight * k * G / 34
+                        expected = const * price_coeff * (effective_w**1.5) * mult
+                        worksheet.write(
+                            row, i + 3, format_price(expected), sprinkler_fmt[i]
+                        )
+                    else:
+                        min_weight = max_weight * k * G / 34
+                        max_weight = min_weight * 2
+                        price_min = price_coeff * (min_weight**1.5) * mult
+                        price_max = price_coeff * (max_weight**1.5) * mult
+                        worksheet.write(
+                            row,
+                            i + 3,
+                            f"{format_price(price_min)}~{format_price(price_max)}",
+                            sprinkler_fmt[i],
+                        )
 
                 first_row = False
                 row += 1
@@ -251,11 +261,14 @@ def create_sheet(
     worksheet.freeze_panes(1, 3)
 
 
-workbook = xlsxwriter.Workbook("作物期望价值表.xlsx")
+OUT_FILE = "作物洒水价值表.xlsx"
+workbook = xlsxwriter.Workbook(OUT_FILE)
 
-create_sheet(workbook, "地球", earth_plants, mutations_earth)
-create_sheet(workbook, "月球", moon_plants, mutations_moon)
+create_sheet(workbook, "地球期望", earth_plants, mutations_earth)
+create_sheet(workbook, "地球范围", earth_plants, mutations_earth, expection=False)
+create_sheet(workbook, "月球期望", moon_plants, mutations_moon)
+create_sheet(workbook, "月球范围", moon_plants, mutations_moon, expection=False)
 
 workbook.close()
 
-print("✅ 已生成：作物期望价值表.xlsx")
+print(f"✅ 已生成：{OUT_FILE}")
