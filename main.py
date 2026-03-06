@@ -160,7 +160,6 @@ def sheet_price_line(
     crop_price_coeff: float,
     is_giant: bool,
     mutation: dict[str, str | float],
-    scale: str,
     first_row: bool,
     formats: dict[str, Format],
     sheet_type: str,
@@ -168,7 +167,8 @@ def sheet_price_line(
     mut_name = mutation["name"]
     mult = mutation["mult"]
 
-    is_dash_line = scale == "普通" and i == 0
+    is_dash_line = not is_giant and i == 0
+    scale = "普通" if not is_giant else "巨大"
 
     if first_row:
         fmt = formats["cell_top"]
@@ -244,32 +244,25 @@ def create_sheet(
         name = plant["name"]
         rarity = get_rarity(name)
 
-        name_fmt = workbook.add_format(
-            {
-                "border": 1,
-                "bg_color": rarity_colors[rarity],
-                "align": "center",
-                "valign": "vcenter",
-            }
-        )
+        name_fmt_args = {
+            "border": 1,
+            "bg_color": rarity_colors[rarity],
+            "align": "center",
+            "valign": "vcenter",
+        }
+        name_fmt = workbook.add_format(name_fmt_args)
 
         name_fmt_top = workbook.add_format(
-            {
-                "border": 1,
+            name_fmt_args
+            | {
                 "top": 2,
-                "bg_color": rarity_colors[rarity],
-                "align": "center",
-                "valign": "vcenter",
             }
         )
 
         name_fmt_dash = workbook.add_format(
-            {
-                "border": 1,
+            name_fmt_args
+            | {
                 "top": 8,
-                "bg_color": rarity_colors[rarity],
-                "align": "center",
-                "valign": "vcenter",
             }
         )
 
@@ -278,7 +271,7 @@ def create_sheet(
 
         first_row = True
 
-        for scale, is_giant in [("巨大", True), ("普通", False)]:
+        for is_giant in [True, False]:
             for i, mut in enumerate(mutations):
                 sheet_price_line(
                     worksheet=worksheet,
@@ -292,7 +285,6 @@ def create_sheet(
                     crop_price_coeff=price_coeff,
                     is_giant=is_giant,
                     mutation=mut,
-                    scale=scale,
                     first_row=first_row,
                     formats=formats,
                     sheet_type=sheet_type,
