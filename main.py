@@ -204,7 +204,7 @@ def create_sheet(
             }
         )
 
-        max_weight = plant["maxWeight"]
+        plant_max_weight = plant["maxWeight"]
         price_coeff = plant["priceCoefficient"]
 
         first_row = True
@@ -238,13 +238,13 @@ def create_sheet(
                 for i, sp in enumerate(sprinklers):
                     k = sp["k"]
                     if expection:
-                        effective_w = max_weight * k * G / 34
+                        effective_w = plant_max_weight * k * G / 34
                         expected = const * price_coeff * (effective_w**1.5) * mult
                         worksheet.write(
                             row, i + 3, format_price(expected), sprinkler_fmt[i]
                         )
                     else:
-                        min_weight = max_weight * k * G / 34
+                        min_weight = plant_max_weight * k * G / 34
                         max_weight = min_weight * 2
                         price_min = price_coeff * (min_weight**1.5) * mult
                         price_max = price_coeff * (max_weight**1.5) * mult
