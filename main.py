@@ -1,7 +1,11 @@
 import json
 import math
 from typing import Iterable, Literal
+
 import xlsxwriter
+from xlsxwriter.workbook import Format, Worksheet
+
+EXPECTION_CONST = (2 / 5) * (4 * math.sqrt(2) - 1)
 
 # 加载 JSON 数据
 with open("plants.json", "r", encoding="utf-8") as f:
@@ -144,17 +148,80 @@ def create_formats(
     return formats
 
 
+def sheet_price_line(
+    worksheet: Worksheet,
+    i: int,
+    row: int,
+    crop_name: str,
+    crop_name_fmt: Format,
+    crop_name_fmt_top: Format,
+    crop_name_fmt_dash: Format,
+    crop_max_weight: float,
+    crop_price_coeff: float,
+    is_giant: bool,
+    mutation: dict[str, str | float],
+    scale: str,
+    first_row: bool,
+    formats: dict[str, Format],
+    sheet_type: str,
+):
+    mut_name = mutation["name"]
+    mult = mutation["mult"]
+
+    is_dash_line = scale == "普通" and i == 0
+
+    if first_row:
+        fmt = formats["cell_top"]
+        name_format = crop_name_fmt_top
+        sprinkler_fmt = formats["sprinkler_top"]
+    elif is_dash_line:
+        fmt = formats["cell_dash"]
+        name_format = crop_name_fmt_dash
+        sprinkler_fmt = formats["sprinkler_dash"]
+    else:
+        fmt = formats["cell"]
+        name_format = crop_name_fmt
+        sprinkler_fmt = formats["sprinkler"]
+
+    worksheet.write(row, 0, crop_name, name_format)
+    worksheet.write(row, 1, mut_name, fmt)
+    worksheet.write(row, 2, scale, fmt)
+
+    G = 5.0 if is_giant else 1.0
+
+    for i, sp in enumerate(sprinklers):
+        k = sp["k"]
+        if sheet_type == "expection":
+            effective_w = crop_max_weight * k * G / 34
+            expected = EXPECTION_CONST * crop_price_coeff * (effective_w**1.5) * mult
+            worksheet.write(row, i + 3, format_price(expected), sprinkler_fmt[i])
+        elif sheet_type == "range":
+            min_weight = crop_max_weight * k * G / 34
+            max_weight = min_weight * 2
+            price_min = crop_price_coeff * (min_weight**1.5) * mult
+            price_max = crop_price_coeff * (max_weight**1.5) * mult
+            worksheet.write(
+                row,
+                i + 3,
+                f"{format_price(price_min)}~{format_price(price_max)}",
+                sprinkler_fmt[i],
+            )
+
+
 def create_sheet(
     workbook: xlsxwriter.Workbook,
     sheet_name: str,
     plants: list[dict],
     mutations: list[dict],
-    sheet_type: Literal["expection", "range"] = "expection",
+    sheet_type: Literal["expection", "range", "expection_time"] = "expection",
 ):
 
     worksheet = workbook.add_worksheet(sheet_name)
 
-    headers = ["作物名称", "突变", "规模", "空刷", "简易", "标准", "白银", "黄金"]
+    if sheet_type != "expection_time":
+        headers = ["作物名称", "突变", "规模", "空刷", "简易", "标准", "白银", "黄金"]
+    else:
+        headers = ["作物名称", "规模", "空刷", "简易", "标准", "白银", "黄金"]
 
     colors = ["#FFFFFF", "#D3D3D3", "#90EE90", "#87CEFA", "#FFCC66"]
 
@@ -164,12 +231,14 @@ def create_sheet(
         worksheet.write(0, col, h, formats["header"])
 
     worksheet.set_column(0, 0, 20)
-    worksheet.set_column(1, 2, 10)
-    worksheet.set_column(3, 7, 18)
+    if sheet_type != "expection_time":
+        worksheet.set_column(1, 2, 10)
+        worksheet.set_column(3, 7, 18)
+    else:
+        worksheet.set_column(1, 1, 10)
+        worksheet.set_column(2, 6, 18)
 
     row = 1
-
-    const = (2 / 5) * (4 * math.sqrt(2) - 1)
 
     for plant in plants:
         name = plant["name"]
@@ -211,50 +280,23 @@ def create_sheet(
 
         for scale, is_giant in [("巨大", True), ("普通", False)]:
             for i, mut in enumerate(mutations):
-                mut_name = mut["name"]
-                mult = mut["mult"]
-
-                is_dash_line = scale == "普通" and i == 0
-
-                if first_row:
-                    fmt = formats["cell_top"]
-                    name_format = name_fmt_top
-                    sprinkler_fmt = formats["sprinkler_top"]
-                elif is_dash_line:
-                    fmt = formats["cell_dash"]
-                    name_format = name_fmt_dash
-                    sprinkler_fmt = formats["sprinkler_dash"]
-                else:
-                    fmt = formats["cell"]
-                    name_format = name_fmt
-                    sprinkler_fmt = formats["sprinkler"]
-
-                worksheet.write(row, 0, name, name_format)
-                worksheet.write(row, 1, mut_name, fmt)
-                worksheet.write(row, 2, scale, fmt)
-
-                G = 5.0 if is_giant else 1.0
-
-                for i, sp in enumerate(sprinklers):
-                    k = sp["k"]
-                    if sheet_type == "expection":
-                        effective_w = plant_max_weight * k * G / 34
-                        expected = const * price_coeff * (effective_w**1.5) * mult
-                        worksheet.write(
-                            row, i + 3, format_price(expected), sprinkler_fmt[i]
-                        )
-                    elif sheet_type == "range":
-                        min_weight = plant_max_weight * k * G / 34
-                        max_weight = min_weight * 2
-                        price_min = price_coeff * (min_weight**1.5) * mult
-                        price_max = price_coeff * (max_weight**1.5) * mult
-                        worksheet.write(
-                            row,
-                            i + 3,
-                            f"{format_price(price_min)}~{format_price(price_max)}",
-                            sprinkler_fmt[i],
-                        )
-
+                sheet_price_line(
+                    worksheet=worksheet,
+                    i=i,
+                    row=row,
+                    crop_name=name,
+                    crop_name_fmt=name_fmt,
+                    crop_name_fmt_top=name_fmt_top,
+                    crop_name_fmt_dash=name_fmt_dash,
+                    crop_max_weight=plant_max_weight,
+                    crop_price_coeff=price_coeff,
+                    is_giant=is_giant,
+                    mutation=mut,
+                    scale=scale,
+                    first_row=first_row,
+                    formats=formats,
+                    sheet_type=sheet_type,
+                )
                 first_row = False
                 row += 1
 
