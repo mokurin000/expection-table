@@ -36,13 +36,13 @@ moon_plants = sort_plants(p for p in plants_data if p["type"] == "月球")
 
 # 基础突变类型及倍数
 mutations_earth = [
-    {"name": "无", "mult": 1.0},
-    {"name": "银", "mult": 3.0},
-    {"name": "金", "mult": 10.0},
-    {"name": "水晶", "mult": 20.0},
     {"name": "流光", "mult": 30.0},
+    {"name": "水晶", "mult": 20.0},
+    {"name": "金", "mult": 10.0},
+    {"name": "银", "mult": 3.0},
+    {"name": "无", "mult": 1.0},
 ]
-mutations_moon = mutations_earth + [{"name": "星空", "mult": 40.0}]
+mutations_moon = [{"name": "星空", "mult": 40.0}] + mutations_earth
 
 # 洒水器类型及对应的 k 值
 sprinklers = [
@@ -90,7 +90,12 @@ def get_rarity(name: str) -> str:
     return "common"  # 默认
 
 
-def create_sheet(workbook, sheet_name, plants, mutations):
+def create_sheet(
+    workbook: xlsxwriter.Workbook,
+    sheet_name: str,
+    plants: list[dict],
+    mutations: list[dict],
+):
     worksheet = workbook.add_worksheet(sheet_name)
 
     headers = ["作物名称", "突变", "规模", "空刷", "简易", "标准", "白银", "黄金"]
@@ -177,11 +182,14 @@ def create_sheet(workbook, sheet_name, plants, mutations):
         price_coeff = plant["priceCoefficient"]
         first_row_of_plant = True
 
-        for mut in mutations:
-            mult = mut["mult"]
-            mut_name = mut["name"]
+        for scale, is_giant in [
+            ("巨大", True),
+            ("普通", False),
+        ]:
+            for mut in mutations:
+                mult = mut["mult"]
+                mut_name = mut["name"]
 
-            for scale, is_giant in [("普通", False), ("巨大", True)]:
                 # 名称列使用带颜色的格式
                 name_fmt = name_fmt_top if first_row_of_plant else name_fmt_normal
 
@@ -213,12 +221,12 @@ def create_sheet(workbook, sheet_name, plants, mutations):
 
 
 # 生成 Excel
-workbook = xlsxwriter.Workbook("作物期望价值表_分行版_带稀有度颜色.xlsx")
+workbook = xlsxwriter.Workbook("作物期望价值表.xlsx")
 create_sheet(workbook, "地球", earth_plants, mutations_earth)
 create_sheet(workbook, "月球", moon_plants, mutations_moon)
 workbook.close()
 
-print("✅ 已生成：作物期望价值表_分行版_带稀有度颜色.xlsx")
+print("✅ 已生成：作物期望价值表.xlsx")
 print(" • 作物名称列按稀有度上色（同一作物所有行同色）")
 print(" • 普通行 G=1，巨大行 G=5")
 print(" • 每格为期望价值（已乘突变倍数）")
